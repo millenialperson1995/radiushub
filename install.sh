@@ -9,6 +9,8 @@ set -euo pipefail
 # ============================ CONFIGURE AQUI =========================
 RADIUS_IFACE="ens34"                 # interface da rede dedicada RADIUS
 RADIUS_IP="10.10.10.2/30"            # IP deste servidor na rede RADIUS
+PPP_POOL="172.16.0.0/24"             # rede dos clientes PPPoE (atras do MikroTik)
+PPPOE_CGNAT_POOL="100.64.0.0/24"     # pool CGNAT opcional (PPPoE); use o mesmo se nao usar
 DB_NAME="radius"
 DB_USER="radius"
 DB_PASS="TROQUE_A_SENHA_MYSQL"       # <-- TROCAR (evite / e & )
@@ -30,6 +32,7 @@ systemctl enable --now mariadb freeradius apache2 unbound >/dev/null
 
 echo "### 2/8 Rede dedicada ($RADIUS_IFACE = $RADIUS_IP)"
 if ! grep -q "$RADIUS_IP" /etc/netplan/*.yaml 2>/dev/null; then
+  RADIUS_GW="${RADIUS_IP%.*}.1"
   cat > /etc/netplan/60-radius.yaml <<EOF
 network:
   version: 2
@@ -37,10 +40,24 @@ network:
     $RADIUS_IFACE:
       addresses:
         - $RADIUS_IP
+      routes:
+        # resposta aos clientes PPPoE (atras do MikroTik) deve sair por aqui
+        - to: $PPP_POOL
+          via: $RADIUS_GW
+        - to: $PPPOE_CGNAT_POOL
+          via: $RADIUS_GW
       optional: true
 EOF
   chmod 600 /etc/netplan/60-radius.yaml
   netplan generate && netplan apply
+  sleep 2
+fi
+# fallback caso a rota nao tenha vindo pelo netplan
+RADIUS_GW="${RADIUS_IP%.*}.1"
+PPP_NET="${PPP_POOL%/*}"
+if ! ip route get "${PPP_NET%.*}.2" 2>/dev/null | grep -q "$RADIUS_IFACE"; then
+  ip route replace "$PPP_POOL" via "$RADIUS_GW" dev "$RADIUS_IFACE"
+  ip route replace "$PPPOE_CGNAT_POOL" via "$RADIUS_GW" dev "$RADIUS_IFACE"
 fi
 
 echo "### 3/8 Banco de dados"
@@ -180,7 +197,9 @@ ss -lun | grep -q ':1812 ' || { echo "ERRO: porta 1812 fechada"; exit 1; }
 ss -lun | grep -q ':53 ' || { echo "ERRO: porta 53 fechada"; exit 1; }
 ufw status | grep -q "Status: active" || { echo "ERRO: UFW inativo"; exit 1; }
 dig +short +time=5 @127.0.0.1 example.com | grep -qE '^[0-9.]+$' || { echo "ERRO: Unbound nao resolve"; exit 1; }
-dig +short @127.0.0.1 accounts.doubleclick.net | grep -q . && { echo "ERRO: RPZ nao bloqueando"; exit 1; }
+if dig +short @127.0.0.1 accounts.doubleclick.net | grep -q .; then
+  echo "ERRO: RPZ nao bloqueando"; exit 1
+fi
 [ "$(curl -sk -o /dev/null -w '%{http_code}' https://127.0.0.1/)" = "200" ] || { echo "ERRO: painel nao respondeu em HTTPS"; exit 1; }
 curl -sk "https://127.0.0.1/api.php?action=status" | grep -q '"ok":true' || { echo "ERRO: api.php"; exit 1; }
 ls /var/backups/radiushub/*.sql.gz >/dev/null 2>&1 || { echo "ERRO: backup nao gerado"; exit 1; }

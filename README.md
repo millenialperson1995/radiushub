@@ -41,7 +41,7 @@ Testado em: **Ubuntu Server 24.04** + **FreeRADIUS 3.2** + **MariaDB 10.11** +
 ## 3. Requisitos
 
 - Ubuntu Server 22.04/24.04 (root/sudo).
-- MikroTik RouterOS (CHR virtual ou equipamento físico) com uma porta livre para a rede do RADIUS.
+- MikroTik RouterOS (equipamento físico ou virtual) com uma porta livre para a rede do RADIUS.
 - Acesso internet no servidor (pacotes + CDNs do painel no navegador).
 
 ## 4. Instalação rápida
@@ -52,8 +52,10 @@ git clone <seu-repo> radiushub && cd radiushub
 sudo bash install.sh
 ```
 
-O script instala pacotes, cria o banco, importa o schema, configura o
-FreeRADIUS (SQL, NAS, logs), publica o painel (HTTPS, sem login) e valida tudo.
+O script instala pacotes, cria a rede dedicada (com a rota de volta dos
+clientes PPPoE), cria o banco, importa o schema, configura o FreeRADIUS
+(SQL, NAS, logs), publica o painel (HTTPS, sem login), sobe o **Unbound**
+(recursivo + RPZ Hagezi), ativa o **UFW** e valida tudo.
 
 ## 5. Instalação manual (passo a passo)
 
@@ -151,15 +153,19 @@ PPPoE Server (exemplo):
 /interface bridge port add bridge=bridge-clientes interface=ether3
 /ip pool add name=pool-pppoe ranges=172.16.0.2-172.16.0.254
 /ppp profile add name=Plano-Base local-address=172.16.0.1 remote-address=pool-pppoe \
-  dns-server=8.8.8.8,1.1.1.1 use-encryption=no
+  dns-server=10.10.10.2 use-encryption=no
 /interface pppoe-server server add service-name=Servidor-PPPoE \
   interface=bridge-clientes default-profile=Plano-Base \
   authentication=pap,chap,mschap1,mschap2 disabled=no
 /ip firewall nat add chain=srcnat action=masquerade out-interface=ether1
 ```
 
-> O profile entrega IP/DNS (base). A **velocidade vem do RADIUS** e sobrepõe o profile.
-> O RADIUS só é consultado se **não existir usuário local** com o mesmo nome.
+> **Importante:** os clientes PPPoE usam a rede `172.16.0.0/24`, que fica atrás
+> do MikroTik. O servidor RADIUS precisa de rota estática de volta para essa
+> rede, senão a resposta do DNS sai pela interface de gerência e o cliente
+> nunca resolve nomes — mesmo pingando IPs. O `install.sh` já cria:
+> `172.16.0.0/24 via 10.10.10.1 dev ens34` e `100.64.0.0/24 via 10.10.10.1 dev ens34`.
+> Sintoma exato: `ping 1.1.1.1` funciona, mas `ping google.com` dá "host not found".
 
 ### 5.7 Painel web
 
@@ -325,6 +331,7 @@ UPDATE radacct SET acctstoptime=NOW(), acctterminatecause='Admin-Reset'
 | Nada chega ao RADIUS | `/radius monitor 0`, `/ppp aaa print`, secret, `tcpdump -ni <iface> "udp port 1812"` |
 | Accept mas cai / sem IP | profile sem `local-address`/`remote-address`, pool esgotada (`/ip pool used print`) |
 | Painel sem dados | `api.php?action=status` no curl, permissão `freerad` p/ www-data, log do Apache |
+| Cliente pinga IP mas **não resolve nome** | rota de retorno da rede PPPoE no servidor: `ip route get 172.16.0.253` deve sair por `ens34` (ver seção 19.5) |
 | Tráfego zerado | `/snmp set enabled=yes` no RouterOS; community; `snmpwalk -v2c -c public 10.10.10.1 1.3.6.1.2.1.2.2.1.2` |
 
 ## 14. Mapa de arquivos e serviços (onde fica cada coisa)
@@ -348,11 +355,11 @@ UPDATE radacct SET acctstoptime=NOW(), acctterminatecause='Admin-Reset'
 | Backup | `/var/backups/radiushub/` + `/usr/local/sbin/radiushub-backup.sh` | cron diário 03:00 |
 | Monitor | `/usr/local/sbin/radiushub-monitor.sh` | cron 5 min, alerta Telegram |
 | Limpeza de sessões | `/usr/local/sbin/radiushub-cleanup.sh` | cron diário 04:00, fecha sessões órfãs |
-| DNS | Unbound recursivo + RPZ Hagezi na porta 53 (ver seção 20) |
-| Firewall | UFW ativo: 22, 53, 80, 443, 1812/1813 |
+| DNS | Unbound recursivo + RPZ Hagezi na porta 53 | ver seção 19 |
+| Firewall | `ufw status verbose` | ativo: 22, 53, 80, 443, 1812/1813 |
 | Cron | `/etc/cron.d/radiushub-backup`, `radiushub-monitor`, `radiushub-cleanup`, `radiushub-rpz` | agendamentos |
 
-Serviços: `mariadb`, `freeradius`, `apache2` (todos `enabled` no boot).
+Serviços: `mariadb`, `freeradius`, `apache2`, `unbound` (todos `enabled` no boot).
 
 ## 15. Como o FreeRADIUS foi configurado (referência)
 
@@ -467,7 +474,7 @@ PPPoE (profile entrega IP/DNS; a velocidade vem do RADIUS):
 /interface bridge port add bridge=bridge-clientes interface=ether3
 /ip pool add name=pool-pppoe ranges=172.16.0.2-172.16.0.254
 /ppp profile add name=Plano-Base local-address=172.16.0.1 remote-address=pool-pppoe \
-  dns-server=8.8.8.8,1.1.1.1 use-encryption=no
+  dns-server=10.10.10.2 use-encryption=no
 /interface pppoe-server server add service-name=Servidor-PPPoE \
   interface=bridge-clientes default-profile=Plano-Base \
   authentication=pap,chap,mschap1,mschap2 disabled=no
@@ -558,10 +565,13 @@ sudo systemctl restart freeradius apache2
 
 ```bash
 ip -br a show ens34                         # 10.10.10.2/30
+ip route get 172.16.0.253                   # deve sair por ens34 (rota PPPoE)
 ping -c3 10.10.10.1                          # enlace com o RouterOS
 sudo freeradius -CX                          # config válida
-systemctl is-active mariadb freeradius apache2
+sudo unbound-checkconf                       # config do DNS válida
+systemctl is-active mariadb freeradius apache2 unbound
 radtest USUARIO SENHA 127.0.0.1 0 testing123  # autenticação
+dig +short @127.0.0.1 example.com            # DNS recursivo
 curl -sk https://127.0.0.1/api.php?action=status
 ```
 
@@ -575,7 +585,7 @@ Se não houver backup, siga a seção **5** (instalação manual) e a seção **
 
 ## 19. DNS recursivo (Unbound) + UFW + uso no MikroTik
 
-### 20.1 O que foi instalado
+### 19.1 O que foi instalado
 
 - **Unbound** recursivo com DNSSEC, `prefetch` + `serve-expired` (rápido sob carga),
   cache 64M/128M e `qname-minimisation`.
@@ -590,7 +600,7 @@ Se não houver backup, siga a seção **5** (instalação manual) e a seção **
 > Por isso ele escuta IPs explícitos: `127.0.0.1`, `::1`, `10.10.10.2` e o IP
 > de gerência. Não mexa nisso sem ajustar `unbound-radiushub.conf`.
 
-### 20.2 Usar este DNS no MikroTik
+### 19.2 Usar este DNS no MikroTik
 
 ```routeros
 # o próprio roteador resolve por aqui
@@ -607,7 +617,16 @@ dig @127.0.0.1 sigok.verteiltesysteme.net | grep flags   # deve ter flag "ad" (D
 dig +short @127.0.0.1 accounts.doubleclick.net  # vazio/NXDOMAIN (RPZ bloqueou)
 ```
 
-### 20.3 Arquivos e comandos do DNS
+### 19.3 Ver qual DNS o cliente recebeu
+
+- Cliente **Windows**: `ipconfig /all` (linha "Servidores DNS").
+- Cliente **Linux**: `resolvectl status` ou `nmcli dev show | grep DNS`.
+- **No RouterOS**: `/ppp profile print detail` (campo `dns-server`) e
+  `/ppp active print detail`.
+- **No servidor**: `sudo tcpdump -i ens34 -n udp port 53` mostra as consultas
+  chegando dos IPs `172.16.0.x` — prova de que o cliente está usando o Unbound.
+
+### 19.4 Arquivos e comandos do DNS
 
 | Item | Caminho |
 |---|---|
@@ -623,11 +642,13 @@ sudo unbound-control status
 sudo ufw status verbose
 ```
 
-### 20.4 Troubleshooting DNS
+### 19.5 Troubleshooting DNS
 
 | Sintoma | Verificar |
 |---|---|
 | `REFUSED` de outra rede | `access-control` no `radiushub.conf` (libere a rede do cliente) |
+| **Pinga IP mas não resolve nome** | rota de retorno da rede PPPoE. `ip route get 172.16.0.253` precisa sair por `ens34`; se sair por `ens33`/default, o Unbound responde mas a resposta se perde. O `install.sh` cria `172.16.0.0/24 via 10.10.10.1 dev ens34` |
+| Cliente não usa o Unbound | o PPP profile ainda entrega outro DNS: `/ppp profile set Plano-Base dns-server=10.10.10.2` |
 | RPZ não bloqueia | domínio precisa estar na lista (`grep domínio /var/lib/unbound/hagezi-pro.rpz`); `systemctl reload unbound` após trocar o arquivo |
 | Lento na 1ª consulta | normal (recursão raiz→TLD→autoritativo); `prefetch` acelera as seguintes |
 | Porta 53 ocupada | `ss -lun | grep ':53 '`; systemd-resolved usa `127.0.0.53` (não conflita com os IPs explícitos) |
