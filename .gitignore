@@ -1,0 +1,16 @@
+# credenciais e configuracoes locais (nunca versionar segredos reais)
+*.local
+.env
+*.secret
+
+# artefatos de backup
+*.sql
+*.sql.gz
+*.tar.gz
+*.dump
+
+# cache / editor / sistema
+__pycache__/
+*.swp
+.DS_Store
+Thumbs.db

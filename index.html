@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RadiusHub - Painel FreeRADIUS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace']
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Scrollbar customizada moderna */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #090d16;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #27354a;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #384b66;
+        }
+        /* Otimização de toque para mobile */
+        button, a, select, input {
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans h-full overflow-hidden flex flex-col selection:bg-brand-500 selection:text-slate-950">
+
+    <header class="h-16 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between shrink-0 z-30 relative">
+        <div class="flex items-center gap-2.5 sm:gap-3">
+            <!-- Botão Hambúrguer Mobile -->
+            <button onclick="toggleMobileMenu()" aria-label="Abrir Menu" class="md:hidden p-2 rounded-xl bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700/80 active:scale-95 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+
+            <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-brand-500/20 shrink-0">
+                <svg class="w-5 h-5 text-slate-950" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
+                </svg>
+            </div>
+            <div>
+                <div class="flex items-center gap-1.5 sm:gap-2">
+                    <span class="font-bold text-base sm:text-lg tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">RadiusHub</span>
+                    <span class="px-1.5 py-0.5 text-[9px] sm:text-[10px] font-mono font-semibold rounded bg-brand-500/15 text-brand-400 border border-brand-500/30">FreeRADIUS</span>
+                </div>
+                <p class="text-xs text-slate-400 hidden lg:block">Painel de Gerenciamento AAA (Autenticação, Autorização e Accounting)</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2 sm:gap-3">
+            <!-- Indicador de Status dos Sockets RADIUS -->
+            <div class="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-slate-800/70 border border-slate-700/60 text-xs">
+                <span class="flex h-2 w-2 relative">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span class="text-slate-300 font-medium">1812/1813 <span class="text-emerald-400 font-mono font-semibold">UP</span></span>
+                <span class="text-slate-600 hidden md:inline">|</span>
+                <span class="text-slate-400 font-mono hidden md:inline">MySQL: Ativo</span>
+            </div>
+
+            <!-- Botão Quick Action radtest -->
+            <button onclick="openModal('modal-radtest')" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-slate-950 transition flex items-center gap-1.5 shadow-md shadow-emerald-950/40">
+                <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span>radtest</span>
+            </button>
+
+            <!-- Exportador de Schema SQL -->
+            <button onclick="openModal('modal-sql-export')" title="Dump SQL / Schema" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition border border-slate-700 active:scale-95">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden relative">
+        <!-- Fundo escuro quando a barra lateral está aberta no celular -->
+        <div id="sidebar-backdrop" onclick="closeMobileMenu()" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 hidden md:hidden transition-opacity"></div>
+
+        <!-- Barra de Navegação Lateral (Drawer no Mobile, Estática no Desktop) -->
+        <aside id="app-sidebar" class="fixed inset-y-0 left-0 z-40 w-72 bg-slate-900 transform -translate-x-full md:relative md:translate-x-0 md:w-64 md:bg-slate-900/50 border-r border-slate-800 p-4 flex flex-col justify-between shrink-0 transition-transform duration-300 ease-in-out">
+            <div class="space-y-1 overflow-y-auto">
+                <div class="flex items-center justify-between px-3 py-2 md:block">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Módulos RADIUS</span>
+                    <button onclick="closeMobileMenu()" class="md:hidden text-slate-400 hover:text-white p-1">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="sidebar-btn active w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                    <span>Dashboard</span>
+                </button>
+
+                <button onclick="switchTab('users')" id="nav-users" class="sidebar-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                    <span>Usuários (radcheck)</span>
+                    <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-slate-800 font-mono text-slate-400" id="badge-users-count">4</span>
+                </button>
+
+                <button onclick="switchTab('nas')" id="nav-nas" class="sidebar-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                    <span>Clientes NAS (nas)</span>
+                    <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-slate-800 font-mono text-slate-400" id="badge-nas-count">3</span>
+                </button>
+
+                <button onclick="switchTab('groups')" id="nav-groups" class="sidebar-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                    <span>Perfis & Grupos</span>
+                </button>
+
+                <button onclick="switchTab('accounting')" id="nav-accounting" class="sidebar-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                    <span>Sessões & Accounting</span>
+                </button>
+
+                <div class="px-3 pt-5 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Diagnóstico & Logs</div>
+
+                <button onclick="openModal('modal-radtest'); closeMobileMenu();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
+                    <svg class="w-4 h-4 shrink-0 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <span>Simulador radtest</span>
+                </button>
+
+                <button onclick="switchTab('raw-logs')" id="nav-raw-logs" class="sidebar-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
+                    <svg class="w-4 h-4 shrink-0 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span>radius.log em Tempo Real</span>
+                </button>
+            </div>
+
+            <!-- Box do Daemon Status -->
+            <div class="p-3 mt-4 rounded-xl bg-slate-800/40 border border-slate-800 text-xs text-slate-400 space-y-1.5 shrink-0">
+                <div class="flex justify-between text-slate-300 font-medium">
+                    <span>Daemon State</span>
+                    <span class="text-emerald-400 font-mono" id="daemon-state">running (PID <span id="daemon-pid">-</span>)</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Uptime</span>
+                    <span class="font-mono text-slate-200" id="daemon-uptime">-</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Database</span>
+                    <span class="font-mono text-slate-200" id="daemon-db">radius</span>
+                </div>
+                <div class="pt-2">
+                    <button onclick="sendRadReload()" class="w-full py-2 rounded-lg text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 active:scale-98 transition">
+                        Recarregar Config (HUP)
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto bg-slate-950 p-3 sm:p-5 md:p-8 space-y-5 md:space-y-6 relative">
+            
+            <!-- TAB 1: DASHBOARD GERAL -->
+            <section id="view-dashboard" class="tab-view space-y-5">
+                <!-- Grid de Métricas Principais (Responsivo: 1 col mobile, 2 col tablet, 4 col desktop) -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
+                    <div class="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Usuários</span>
+                            <span class="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                            </span>
+                        </div>
+                        <div class="mt-3 flex items-baseline gap-2">
+                            <span class="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-white" id="stat-total-users">4</span>
+                            <span class="text-xs text-emerald-400 font-medium">Ativos</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-1">Registros na tabela <code class="font-mono text-slate-400">radcheck</code></p>
+                    </div>
+
+                    <div class="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Sessões Online</span>
+                            <span class="p-2 rounded-lg bg-cyan-500/10 text-cyan-400">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            </span>
+                        </div>
+                        <div class="mt-3 flex items-baseline gap-2">
+                            <span class="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-white" id="stat-active-sessions">2</span>
+                            <span class="text-xs text-cyan-400 font-medium">Accounting Ativo</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-1"><code class="font-mono text-slate-400">radacct.acctstoptime IS NULL</code></p>
+                    </div>
+
+                    <div class="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Access-Accept</span>
+                            <span class="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            </span>
+                        </div>
+                        <div class="mt-3 flex items-baseline gap-2">
+                            <span class="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-white" id="stat-accept-rate">98.4%</span>
+                            <span class="text-xs text-emerald-400 font-medium">Últimas 24h</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-1" id="stat-accept-sub">carregando...</p>
+                    </div>
+
+                    <div class="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Clientes NAS</span>
+                            <span class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                            </span>
+                        </div>
+                        <div class="mt-3 flex items-baseline gap-2">
+                            <span class="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-white" id="stat-nas-count">3</span>
+                            <span class="text-xs text-indigo-400 font-medium">Roteadores / APs</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-1">MikroTik, Cisco & pfSense</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <div class="lg:col-span-2 p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="font-semibold text-white text-sm">Tráfego em tempo real</h3>
+                                <p class="text-xs text-slate-400">SNMP do RouterOS (10.10.10.1) por usuário PPPoE — atualiza a cada 3s</p>
+                            </div>
+                            <span id="snmp-status" class="text-xs font-mono text-slate-500">aguardando...</span>
+                        </div>
+                        <div class="h-56 sm:h-64 relative">
+                            <canvas id="liveTrafficChart"></canvas>
+                        </div>
+                        <div id="live-rates" class="space-y-1.5">
+                            <p class="text-xs text-slate-500">carregando...</p>
+                        </div>
+                    </div>
+
+                    <div class="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                        <div>
+                            <h3 class="font-semibold text-white text-sm">Online agora</h3>
+                            <p class="text-xs text-slate-400">Sessões com accounting aberto (tempo real)</p>
+                        </div>
+                        <div id="online-now-list" class="space-y-2">
+                            <p class="text-xs text-slate-500">carregando...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <div class="lg:col-span-2 p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="font-semibold text-white text-sm">Requisições RADIUS (Pacotes / Hora)</h3>
+                                <p class="text-xs text-slate-400">Volume de Access-Request vs Access-Reject</p>
+                            </div>
+                            <span class="text-xs font-mono text-emerald-400 flex items-center gap-1.5">
+                                <span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span> Live
+                            </span>
+                        </div>
+                        <div class="h-56 sm:h-64 relative">
+                            <canvas id="authChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                        <div>
+                            <h3 class="font-semibold text-white text-sm">Tráfego por NAS</h3>
+                            <p class="text-xs text-slate-400">Origem das autenticações por equipamento</p>
+                        </div>
+                        <div class="h-48 sm:h-56 flex items-center justify-center relative">
+                            <canvas id="nasPieChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-semibold text-white text-sm">Últimos Eventos AAA</h3>
+                            <p class="text-xs text-slate-400">Tráfego recente recebido nas portas UDP 1812 / 1813</p>
+                        </div>
+                        <button onclick="switchTab('raw-logs')" class="text-xs text-emerald-400 hover:underline font-medium">Ver logs &rarr;</button>
+                    </div>
+
+                    <div class="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                        <table class="w-full text-left text-xs min-w-[580px]">
+                            <thead class="bg-slate-800/50 text-slate-400 font-mono">
+                                <tr>
+                                    <th class="py-2.5 px-3 rounded-l">Timestamp</th>
+                                    <th class="py-2.5 px-3">Tipo</th>
+                                    <th class="py-2.5 px-3">Usuário</th>
+                                    <th class="py-2.5 px-3">NAS-IP</th>
+                                    <th class="py-2.5 px-3">Resultado</th>
+                                    <th class="py-2.5 px-3 rounded-r">Detalhe</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dashboard-recent-events" class="divide-y divide-slate-800/60 font-mono">
+                                <!-- Preenchido dinamicamente via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-users" class="tab-view hidden space-y-5">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-bold text-white tracking-tight">Gerenciamento de Usuários</h2>
+                        <p class="text-xs text-slate-400">Credenciais e atributos nas tabelas <code class="font-mono text-emerald-400">radcheck</code> e <code class="font-mono text-emerald-400">radreply</code></p>
+                    </div>
+                    <div class="flex flex-col xs:flex-row sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+                        <div class="relative flex-1 sm:flex-initial">
+                            <input type="text" id="user-search-input" onkeyup="filterUsers()" placeholder="Buscar usuário ou IP..." class="w-full sm:w-60 bg-slate-900 border border-slate-700 text-xs rounded-xl pl-9 pr-3 py-2.5 sm:py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                            <svg class="w-4 h-4 text-slate-500 absolute left-3 top-3 sm:top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        </div>
+                        <button onclick="openModal('modal-add-user')" class="px-3.5 py-2.5 sm:py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-semibold flex items-center justify-center gap-2 transition shrink-0 active:scale-95">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            <span>Novo Usuário</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="rounded-2xl border border-slate-800 bg-slate-900 overflow-hidden shadow-xl">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs min-w-[680px]">
+                            <thead class="bg-slate-800/60 uppercase font-semibold text-slate-400 tracking-wider">
+                                <tr>
+                                    <th class="py-3 px-4">Usuário</th>
+                                    <th class="py-3 px-4">Atributo Senha</th>
+                                    <th class="py-3 px-4">Grupo / Plano</th>
+                                    <th class="py-3 px-4">IP Fixo (Framed-IP)</th>
+                                    <th class="py-3 px-4">Status</th>
+                                    <th class="py-3 px-4 text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body" class="divide-y divide-slate-800 text-slate-300">
+                                <!-- Preenchido dinamicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-nas" class="tab-view hidden space-y-5">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-bold text-white tracking-tight">Clientes NAS (Roteadores & APs)</h2>
+                        <p class="text-xs text-slate-400">Equipamentos autorizados a consultar o servidor (<code class="font-mono text-emerald-400">tabela nas</code>)</p>
+                    </div>
+                    <button onclick="openModal('modal-add-nas')" class="w-full sm:w-auto px-3.5 py-2.5 sm:py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-semibold flex items-center justify-center gap-2 transition active:scale-95">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        <span>Adicionar Cliente NAS</span>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5" id="nas-card-grid">
+                    <!-- Cards de NAS gerados via JS -->
+                </div>
+            </section>
+
+            <section id="view-groups" class="tab-view hidden space-y-5">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-bold text-white tracking-tight">Perfis & Grupos de Velocidade</h2>
+                        <p class="text-xs text-slate-400">Atributos de resposta em grupo (<code class="font-mono text-emerald-400">radgroupreply</code>)</p>
+                    </div>
+                    <button onclick="openModal('modal-add-group')" class="w-full sm:w-auto px-3.5 py-2.5 sm:py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-semibold flex items-center justify-center gap-2 transition active:scale-95">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        <span>Criar Perfil</span>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5" id="groups-container">
+                    <!-- Grupos gerados dinamicamente -->
+                </div>
+            </section>
+
+            <section id="view-accounting" class="tab-view hidden space-y-5">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-bold text-white tracking-tight">Sessões & Histórico (radacct)</h2>
+                        <p class="text-xs text-slate-400">Accounting em tempo real de clientes conectados e desconexão forçada (PoD)</p>
+                    </div>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <span class="text-xs text-slate-400">Filtro:</span>
+                        <select id="acct-filter" onchange="renderAccounting()" class="flex-1 sm:flex-initial bg-slate-900 border border-slate-700 text-xs rounded-xl px-3 py-2 text-white focus:outline-none">
+                            <option value="all">Todas as sessões</option>
+                            <option value="active" selected>Apenas Ativas (Online)</option>
+                            <option value="closed">Encerradas</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="rounded-2xl border border-slate-800 bg-slate-900 overflow-hidden shadow-xl">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs min-w-[720px]">
+                            <thead class="bg-slate-800/60 uppercase font-semibold text-slate-400 tracking-wider">
+                                <tr>
+                                    <th class="py-3 px-4">Session ID</th>
+                                    <th class="py-3 px-4">Usuário</th>
+                                    <th class="py-3 px-4">NAS IP / Porta</th>
+                                    <th class="py-3 px-4">IP & MAC</th>
+                                    <th class="py-3 px-4">Tempo Online</th>
+                                    <th class="py-3 px-4">Down / Up</th>
+                                    <th class="py-3 px-4">Status</th>
+                                    <th class="py-3 px-4 text-right">Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="accounting-table-body" class="divide-y divide-slate-800 text-slate-300 font-mono">
+                                <!-- Preenchido dinamicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-raw-logs" class="tab-view hidden space-y-4">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-bold text-white tracking-tight">Console radius.log</h2>
+                        <p class="text-xs text-slate-400 font-mono">/var/log/freeradius/radius.log & pacotes recebidos</p>
+                    </div>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <button onclick="clearLogs()" class="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition active:scale-95">
+                            Limpar
+                        </button>
+                        <button onclick="toggleLogPause()" id="btn-pause-log" class="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-medium border border-amber-500/30 transition active:scale-95">
+                            Pausar Stream
+                        </button>
+                    </div>
+                </div>
+
+                <div class="p-3 sm:p-4 rounded-2xl bg-black border border-slate-800 font-mono text-xs text-slate-300 h-[480px] sm:h-[600px] overflow-y-auto space-y-1" id="terminal-logs">
+                    <!-- Logs inseridos dinamicamente -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="modal-radtest" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+            <div class="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/60 shrink-0">
+                <div class="flex items-center gap-2">
+                    <span class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    </span>
+                    <h3 class="font-semibold text-white text-sm">Simulador de Teste (radtest)</h3>
+                </div>
+                <button onclick="closeModal('modal-radtest')" class="text-slate-400 hover:text-white transition p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <div class="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+                <p class="text-xs text-slate-400">
+                    Dispara uma requisição <code class="bg-slate-800 px-1.5 py-0.5 rounded text-emerald-400 font-mono">radtest &lt;user&gt; &lt;pass&gt; &lt;nas&gt; 0 &lt;secret&gt;</code> e valida os atributos retornados pelo FreeRADIUS.
+                </p>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Usuário (User-Name)</label>
+                        <input type="text" id="radtest-user" value="joao.silva" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Senha (User-Password)</label>
+                        <input type="password" id="radtest-pass" value="fibra@2026" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Servidor alvo</label>
+                        <input type="text" value="127.0.0.1:1812 (este servidor)" readonly class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-400 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Shared Secret</label>
+                        <input type="text" id="radtest-secret" value="testing123" readonly class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-400 focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between pb-1.5">
+                        <span class="text-xs font-mono font-medium text-slate-400">Resposta do Servidor FreeRADIUS:</span>
+                        <span id="radtest-status-pill" class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400">Pronto</span>
+                    </div>
+                    <div id="radtest-output" class="bg-black border border-slate-800 p-3 rounded-xl font-mono text-xs text-slate-300 h-36 sm:h-44 overflow-y-auto whitespace-pre-wrap">
+// Pressione "Disparar (UDP 1812)" para testar a autenticação...
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-800 bg-slate-900/60 flex items-center justify-end gap-2 sm:gap-3 shrink-0">
+                <button onclick="closeModal('modal-radtest')" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 transition">Fechar</button>
+                <button onclick="executeRadtest()" id="btn-run-radtest" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
+                    <span>Disparar (UDP 1812)</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-add-user" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+            <div class="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-800 flex items-center justify-between shrink-0">
+                <h3 class="font-semibold text-white text-sm">Novo Usuário FreeRADIUS</h3>
+                <button onclick="closeModal('modal-add-user')" class="text-slate-400 hover:text-white p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <form onsubmit="handleSaveUser(event)" class="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Username (radcheck)</label>
+                        <input type="text" id="form-user-name" required placeholder="ex: cliente_102" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Atributo de Senha</label>
+                        <select id="form-user-attr" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                            <option value="Cleartext-Password">Cleartext-Password (:=)</option>
+                            <option value="MD5-Password">MD5-Password (:=)</option>
+                            <option value="SHA2-Password">SHA2-Password (:=)</option>
+                            <option value="Crypt-Password">Crypt-Password (==)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Senha (Value)</label>
+                        <input type="text" id="form-user-pass" required placeholder="Senha de acesso" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Perfil / Plano</label>
+                        <select id="form-user-group" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                            <option value="Plano 500M - Fibra">Plano 500M - Fibra</option>
+                            <option value="Plano 200M - Residencial">Plano 200M - Residencial</option>
+                            <option value="Corporativo Dedicado">Corporativo Dedicado</option>
+                            <option value="Visitante Hotspot">Visitante Hotspot</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-800 pt-3">
+                    <p class="text-[11px] font-semibold uppercase text-slate-500 mb-2">Atributos Opcionais (radreply)</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">Framed-IP-Address (IP Fixo)</label>
+                            <input type="text" id="form-user-ip" placeholder="ex: 100.64.1.50 (Opcional)" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">Simultaneous-Use</label>
+                            <input type="number" id="form-user-simultaneous" value="1" min="1" max="10" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-slate-800 flex justify-end gap-2.5">
+                    <button type="button" onclick="closeModal('modal-add-user')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-semibold active:scale-95">Salvar Usuário</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-add-nas" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+            <div class="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-800 flex items-center justify-between shrink-0">
+                <h3 class="font-semibold text-white text-sm">Adicionar Cliente NAS</h3>
+                <button onclick="closeModal('modal-add-nas')" class="text-slate-400 hover:text-white p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <form onsubmit="handleSaveNas(event)" class="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Nome Curto (shortname)</label>
+                    <input type="text" id="form-nas-name" required placeholder="ex: bng-core-01" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">IP ou FQDN (nasname)</label>
+                        <input type="text" id="form-nas-ip" required placeholder="ex: 192.168.100.1" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Fabricante / Tipo</label>
+                        <select id="form-nas-type" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                            <option value="mikrotik">MikroTik RouterOS</option>
+                            <option value="cisco">Cisco IOS / XE</option>
+                            <option value="other">pfSense / FreeBSD</option>
+                            <option value="chillispot">UniFi / CoovaChilli</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Shared Secret</label>
+                    <input type="text" id="form-nas-secret" required placeholder="ex: radius_key_super_segura" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Descrição</label>
+                    <input type="text" id="form-nas-desc" placeholder="Localização ou modelo do equipamento" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div class="pt-4 flex justify-end gap-2.5 border-t border-slate-800">
+                    <button type="button" onclick="closeModal('modal-add-nas')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-semibold active:scale-95">Salvar NAS</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-add-group" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+            <div class="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-800 flex items-center justify-between shrink-0">
+                <h3 class="font-semibold text-white text-sm">Criar Perfil de Atributos</h3>
+                <button onclick="closeModal('modal-add-group')" class="text-slate-400 hover:text-white p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <form onsubmit="handleSaveGroup(event)" class="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Nome do Grupo (groupname)</label>
+                    <input type="text" id="form-group-name" required placeholder="ex: Plano 1GB - Gamer" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">MikroTik-Rate-Limit (Upload/Download)</label>
+                    <input type="text" id="form-group-rate" required placeholder="ex: 500M/1000M" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Session-Timeout (Segundos)</label>
+                    <input type="number" id="form-group-timeout" value="86400" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div class="pt-4 flex justify-end gap-2.5 border-t border-slate-800">
+                    <button type="button" onclick="closeModal('modal-add-group')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-semibold active:scale-95">Salvar Perfil</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-sql-export" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+            <div class="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-800 flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-2">
+                    <span class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+                    </span>
+                    <h3 class="font-semibold text-white text-sm">Dump SQL FreeRADIUS (Schema & Dados)</h3>
+                </div>
+                <button onclick="closeModal('modal-sql-export')" class="text-slate-400 hover:text-white p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="p-4 sm:p-6 space-y-3 overflow-y-auto flex-1">
+                <p class="text-xs text-slate-400">Instruções prontas para executar no MySQL/MariaDB do seu servidor FreeRADIUS:</p>
+                <textarea id="sql-dump-area" readonly class="w-full h-64 sm:h-80 bg-black border border-slate-800 rounded-xl p-3 sm:p-4 font-mono text-xs text-emerald-400 focus:outline-none select-all"></textarea>
+            </div>
+            <div class="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-800 bg-slate-900/60 flex items-center justify-between shrink-0">
+                <span class="text-[11px] text-slate-500 hidden sm:inline">Compatível com schema freeradius-mysql padrão</span>
+                <div class="flex items-center gap-2.5 ml-auto">
+                    <button onclick="copySqlDump()" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                        <span>Copiar SQL</span>
+                    </button>
+                    <button onclick="closeModal('modal-sql-export')" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed bottom-4 right-4 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none max-w-[90vw]">
+        <div class="bg-slate-900 border border-slate-700 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs text-white">
+            <div id="toast-icon" class="text-emerald-400 shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            </div>
+            <span id="toast-message">Operação executada com sucesso.</span>
+        </div>
+    </div>
+
+    <script>
+        const APP_STATE = {
+            users: [
+                { id: 1, username: 'joao.silva', attribute: 'Cleartext-Password', op: ':=', value: 'fibra@2026', group: 'Plano 500M - Fibra', framedIp: '100.64.10.25', simultaneous: 1, status: 'active' },
+                { id: 2, username: 'mariana.costa', attribute: 'Cleartext-Password', op: ':=', value: 'marianapass123', group: 'Plano 200M - Residencial', framedIp: '100.64.10.88', simultaneous: 1, status: 'active' },
+                { id: 3, username: 'corp-alphatech', attribute: 'MD5-Password', op: ':=', value: '78e731027d830eed', group: 'Corporativo Dedicado', framedIp: '200.180.45.10', simultaneous: 5, status: 'active' },
+                { id: 4, username: 'visitante-hotspot', attribute: 'Cleartext-Password', op: ':=', value: 'guest2026', group: 'Visitante Hotspot', framedIp: '172.16.50.12', simultaneous: 1, status: 'disabled' }
+            ],
+            nasClients: [
+                { id: 1, name: 'mikrotik-core-bng', ip: '192.168.88.1', type: 'mikrotik', secret: 'radius_key_secret_2026', desc: 'CCR2004 - Concentrador PPPoE Datacenter' },
+                { id: 2, name: 'cisco-switch-acesso', ip: '10.0.0.1', type: 'cisco', secret: 'cisco8021xSecretKey', desc: 'Catalyst 3850 - 802.1X Port Security' },
+                { id: 3, name: 'pfsense-openvpn', ip: '172.16.10.1', type: 'other', secret: 'vpnRadiusSharedToken', desc: 'Servidor OpenVPN & IPsec Remote Access' }
+            ],
+            groups: [
+                { id: 1, name: 'Plano 500M - Fibra', rate: '250M/500M', timeout: 86400, desc: 'Perfil residencial de alta velocidade' },
+                { id: 2, name: 'Plano 200M - Residencial', rate: '100M/200M', timeout: 86400, desc: 'Perfil padrão FTTH' },
+                { id: 3, name: 'Corporativo Dedicado', rate: '1000M/1000M', timeout: 604800, desc: 'Link simétrico empresarial com IP fixo' },
+                { id: 4, name: 'Visitante Hotspot', rate: '5M/10M', timeout: 7200, desc: 'Hotspot para convidados (2 horas)' }
+            ],
+            sessions: [
+                { id: '8201A9C4-0001', username: 'joao.silva', nasIp: '192.168.88.1', port: 'pppoe-in-22', framedIp: '100.64.10.25', mac: 'D4:CA:6D:E1:89:12', duration: '04:22:15', down: '4.8 GB', up: '850 MB', active: true },
+                { id: '8201A9C4-0002', username: 'corp-alphatech', nasIp: '192.168.88.1', port: 'vlan-402', framedIp: '200.180.45.10', mac: 'BC:24:11:58:A0:01', duration: '72:10:48', down: '84.2 GB', up: '62.1 GB', active: true },
+                { id: '8201A9C4-0003', username: 'mariana.costa', nasIp: '192.168.88.1', port: 'pppoe-in-45', framedIp: '100.64.10.88', mac: '48:8F:5A:22:31:AA', duration: '01:14:02', down: '1.2 GB', up: '210 MB', active: false }
+            ],
+            logs: [],
+            isLogPaused: false
+        };
+
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('app-sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            const isClosed = sidebar.classList.contains('-translate-x-full');
+
+            if (isClosed) {
+                sidebar.classList.remove('-translate-x-full');
+                backdrop.classList.remove('hidden');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                backdrop.classList.add('hidden');
+            }
+        }
+
+        function closeMobileMenu() {
+            const sidebar = document.getElementById('app-sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.add('-translate-x-full');
+            }
+            if (backdrop) backdrop.classList.add('hidden');
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
+            const target = document.getElementById(`view-${tabId}`);
+            if (target) target.classList.remove('hidden');
+
+            document.querySelectorAll('.sidebar-btn').forEach(btn => {
+                btn.classList.remove('bg-emerald-500/10', 'text-emerald-400', 'border', 'border-emerald-500/20');
+                btn.classList.add('text-slate-400');
+            });
+
+            const activeBtn = document.getElementById(`nav-${tabId}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('text-slate-400');
+                activeBtn.classList.add('bg-emerald-500/10', 'text-emerald-400', 'border', 'border-emerald-500/20');
+            }
+
+            closeMobileMenu();
+        }
+
+        function renderUsers(list = APP_STATE.users) {
+            const tbody = document.getElementById('users-table-body');
+            tbody.innerHTML = '';
+
+            list.forEach(user => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-800/40 transition';
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-mono font-medium text-white flex items-center gap-2">
+                        <div class="h-2 w-2 rounded-full shrink-0 ${user.status === 'active' ? 'bg-emerald-400' : 'bg-slate-600'}"></div>
+                        <span class="truncate max-w-[120px] sm:max-w-none">${user.username}</span>
+                    </td>
+                    <td class="py-3 px-4 font-mono text-slate-400">
+                        <span class="text-[11px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">${user.attribute}</span>
+                    </td>
+                    <td class="py-3 px-4">
+                        <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">${user.group}</span>
+                    </td>
+                    <td class="py-3 px-4 font-mono text-slate-400">${user.framedIp || '<span class="text-slate-600">Dinâmico</span>'}</td>
+                    <td class="py-3 px-4">
+                        <span class="px-2 py-0.5 text-[10px] font-semibold uppercase rounded ${user.status === 'active' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}">
+                            ${user.status === 'active' ? 'Ativo' : 'Bloqueado'}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 text-right space-x-1 sm:space-x-2">
+                        <button onclick="testUserDirect('${user.username}')" title="Testar no radtest" class="p-1.5 rounded-lg hover:bg-slate-800 text-emerald-400 transition inline-block">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        </button>
+                        <button onclick="toggleUserStatus(${user.id})" title="${user.status === 'active' ? 'Desabilitar' : 'Habilitar'}" class="p-1.5 rounded-lg hover:bg-slate-800 text-amber-400 transition inline-block">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                        </button>
+                        <button onclick="deleteUser(${user.id})" title="Excluir" class="p-1.5 rounded-lg hover:bg-slate-800 text-rose-400 transition inline-block">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('badge-users-count').innerText = APP_STATE.users.length;
+            document.getElementById('stat-total-users').innerText = APP_STATE.users.length;
+            updateSqlDump();
+        }
+
+        function filterUsers() {
+            const query = document.getElementById('user-search-input').value.toLowerCase();
+            const filtered = APP_STATE.users.filter(u => 
+                u.username.toLowerCase().includes(query) || 
+                (u.framedIp && u.framedIp.includes(query)) ||
+                u.group.toLowerCase().includes(query)
+            );
+            renderUsers(filtered);
+        }
+
+        function toggleUserStatus(id) {
+            const user = APP_STATE.users.find(u => u.id === id);
+            if (user) {
+                user.status = user.status === 'active' ? 'disabled' : 'active';
+                renderUsers();
+                showToast(`Status de ${user.username}: ${user.status}.`);
+                logEvent(`INFO: Usuário ${user.username} alterado para status ${user.status}.`);
+            }
+        }
+
+        function deleteUser(id) {
+            const idx = APP_STATE.users.findIndex(u => u.id === id);
+            if (idx !== -1) {
+                const name = APP_STATE.users[idx].username;
+                APP_STATE.users.splice(idx, 1);
+                renderUsers();
+                showToast(`Usuário ${name} removido.`);
+                logEvent(`DELETE: radcheck DELETE WHERE username='${name}'`);
+            }
+        }
+
+        function renderNasClients() {
+            const container = document.getElementById('nas-card-grid');
+            container.innerHTML = '';
+
+            APP_STATE.nasClients.forEach(nas => {
+                const card = document.createElement('div');
+                card.className = 'p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3.5 hover:border-slate-700 transition';
+                
+                const typeIcon = nas.type === 'mikrotik' 
+                    ? '<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">MikroTik</span>'
+                    : nas.type === 'cisco'
+                    ? '<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">Cisco AAA</span>'
+                    : '<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Generic NAS</span>';
+
+                card.innerHTML = `
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <h4 class="font-bold text-white text-sm sm:text-base tracking-tight">${nas.name}</h4>
+                            <p class="text-xs font-mono text-slate-400 mt-0.5">${nas.ip}</p>
+                        </div>
+                        ${typeIcon}
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs space-y-1 font-mono">
+                        <div class="flex justify-between text-slate-400">
+                            <span>Secret:</span>
+                            <span class="text-emerald-400 select-all truncate max-w-[140px]">${nas.secret}</span>
+                        </div>
+                        <div class="flex justify-between text-slate-400">
+                            <span>Portas:</span>
+                            <span class="text-slate-300">1812/auth, 1813/acct</span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 line-clamp-2">${nas.desc || 'Sem observações'}</p>
+                    <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                        <button onclick="testNasDirect('${nas.ip}', '${nas.secret}')" class="text-emerald-400 hover:underline flex items-center gap-1 font-medium">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            <span>Testar</span>
+                        </button>
+                        <button onclick="deleteNas(${nas.id})" class="text-rose-400 hover:underline">Remover</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            document.getElementById('badge-nas-count').innerText = APP_STATE.nasClients.length;
+            document.getElementById('stat-nas-count').innerText = APP_STATE.nasClients.length;
+            updateSqlDump();
+        }
+
+        function deleteNas(id) {
+            const idx = APP_STATE.nasClients.findIndex(n => n.id === id);
+            if (idx !== -1) {
+                const name = APP_STATE.nasClients[idx].name;
+                APP_STATE.nasClients.splice(idx, 1);
+                renderNasClients();
+                showToast(`NAS ${name} excluído.`);
+                logEvent(`DELETE: Cliente NAS '${name}' removido.`);
+            }
+        }
+
+        function renderGroups() {
+            const container = document.getElementById('groups-container');
+            container.innerHTML = '';
+
+            APP_STATE.groups.forEach(grp => {
+                const card = document.createElement('div');
+                card.className = 'p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3.5';
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <h4 class="font-bold text-white text-sm">${grp.name}</h4>
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">radgroupreply</span>
+                    </div>
+                    <p class="text-xs text-slate-400">${grp.desc}</p>
+                    <div class="space-y-1.5 text-xs font-mono bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Rate-Limit:</span>
+                            <span class="text-emerald-400 font-semibold">${grp.rate}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Timeout:</span>
+                            <span class="text-slate-300">${grp.timeout} seg</span>
+                        </div>
+                    </div>
+                    <div class="pt-2 flex justify-end">
+                        <button onclick="deleteGroup(${grp.id})" class="text-xs text-rose-400 hover:underline">Excluir Perfil</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+            updateSqlDump();
+        }
+
+        function deleteGroup(id) {
+            const idx = APP_STATE.groups.findIndex(g => g.id === id);
+            if (idx !== -1) {
+                const name = APP_STATE.groups[idx].name;
+                APP_STATE.groups.splice(idx, 1);
+                renderGroups();
+                showToast(`Perfil '${name}' removido.`);
+            }
+        }
+
+        function renderAccounting() {
+            const filterEl = document.getElementById('acct-filter');
+            const filter = filterEl ? filterEl.value : 'all';
+            const tbody = document.getElementById('accounting-table-body');
+            tbody.innerHTML = '';
+
+            const list = APP_STATE.sessions.filter(s => {
+                if (filter === 'active') return s.active === true;
+                if (filter === 'closed') return s.active === false;
+                return true;
+            });
+
+            list.forEach(sess => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-800/40 transition';
+                tr.innerHTML = `
+                    <td class="py-3 px-4 text-slate-400 font-mono text-[11px]">${sess.id}</td>
+                    <td class="py-3 px-4 text-white font-medium">${sess.username}</td>
+                    <td class="py-3 px-4 text-slate-400">${sess.nasIp} <span class="text-slate-500 text-[10px]">(${sess.port})</span></td>
+                    <td class="py-3 px-4">
+                        <div class="text-emerald-400">${sess.framedIp}</div>
+                        <div class="text-[10px] text-slate-500">${sess.mac}</div>
+                    </td>
+                    <td class="py-3 px-4 text-slate-300">${sess.duration}</td>
+                    <td class="py-3 px-4 text-slate-300 whitespace-nowrap">
+                        <span class="text-emerald-400">&darr; ${sess.down}</span> / 
+                        <span class="text-cyan-400">&uarr; ${sess.up}</span>
+                    </td>
+                    <td class="py-3 px-4">
+                        <span class="px-2 py-0.5 text-[10px] font-semibold rounded ${sess.active ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'}">
+                            ${sess.active ? 'ONLINE' : 'STOPPED'}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 text-right">
+                        ${sess.active ? `
+                            <button onclick="sendDisconnectPod('${sess.username}', '${sess.framedIp}', '${sess.id}')" class="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-[11px] border border-rose-500/20 transition active:scale-95">
+                                PoD Disconnect
+                            </button>
+                        ` : '<span class="text-slate-600 text-xs">-</span>'}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const activeCount = APP_STATE.sessions.filter(s => s.active).length;
+            document.getElementById('stat-active-sessions').innerText = activeCount;
+        }
+
+        function sendDisconnectPod(user, ip, sessId) {
+            logEvent(`CoA/PoD: Enviando Disconnect-Request para ${user} (${ip})`);
+            showToast(`Packet of Disconnect (PoD) enviado para ${user}.`);
+            
+            setTimeout(() => {
+                const target = APP_STATE.sessions.find(s => s.id === sessId);
+                if (target) {
+                    target.active = false;
+                    renderAccounting();
+                    logEvent(`CoA-ACK: Sessão ${sessId} encerrada.`);
+                }
+            }, 500);
+        }
+
+        function executeRadtest() {
+            const user = document.getElementById('radtest-user').value.trim();
+            const pass = document.getElementById('radtest-pass').value;
+            const nas = document.getElementById('radtest-nas').value;
+            const output = document.getElementById('radtest-output');
+            const pill = document.getElementById('radtest-status-pill');
+            const btn = document.getElementById('btn-run-radtest');
+
+            btn.disabled = true;
+            pill.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300';
+            pill.innerText = 'Enviando UDP 1812...';
+            output.innerText = `Enviando Access-Request de ID 128 para ${nas}:1812\nUser-Name = "${user}"\nUser-Password = "${pass}"\nNAS-IP-Address = ${nas}\nNAS-Port = 0\n`;
+
+            setTimeout(() => {
+                const foundUser = APP_STATE.users.find(u => u.username === user);
+                const isPasswordValid = foundUser && foundUser.value === pass && foundUser.status === 'active';
+
+                if (isPasswordValid) {
+                    pill.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300';
+                    pill.innerText = 'Access-Accept (Code 2)';
+                    output.innerText += `\nRecebido Access-Accept de ID 128 (RTT 3.8 ms)\n` +
+                        `-----------------------------------------------------\n` +
+                        `Framed-Protocol = PPP\n` +
+                        `Framed-IP-Address = ${foundUser.framedIp || '100.64.10.x (dinâmico)'}\n` +
+                        `MikroTik-Rate-Limit = "${foundUser.group.includes('500M') ? '250M/500M' : '100M/200M'}"\n` +
+                        `Session-Timeout = 86400\n` +
+                        `Acct-Interim-Interval = 300\n`;
+
+                    logEvent(`AUTH OK: [${user}] logado com sucesso via NAS ${nas}.`);
+                } else {
+                    pill.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-300';
+                    pill.innerText = 'Access-Reject (Code 3)';
+                    const reason = !foundUser ? 'Usuário não cadastrado' : foundUser.status !== 'active' ? 'Usuário bloqueado' : 'Senha incorreta (mismatch)';
+                    output.innerText += `\nRecebido Access-Reject de ID 128 (RTT 2.1 ms)\n` +
+                        `-----------------------------------------------------\n` +
+                        `Reply-Message = "Falha: ${reason}"\n` +
+                        `rlm_sql: password comparison returned 1 (Rejected)\n`;
+
+                    logEvent(`AUTH FAIL: [${user}] Rejeitado via NAS ${nas} (${reason}).`);
+                }
+                btn.disabled = false;
+            }, 650);
+        }
+
+        function testUserDirect(username) {
+            const user = APP_STATE.users.find(u => u.username === username);
+            if (user) {
+                document.getElementById('radtest-user').value = user.username;
+                document.getElementById('radtest-pass').value = user.value;
+                openModal('modal-radtest');
+                executeRadtest();
+            }
+        }
+
+        function testNasDirect(ip, secret) {
+            document.getElementById('radtest-nas').value = ip;
+            document.getElementById('radtest-secret').value = secret;
+            openModal('modal-radtest');
+        }
+
+        function logEvent(text) {
+            const now = new Date();
+            const timeStr = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0');
+            const logEntry = `[${timeStr}] ${text}`;
+            APP_STATE.logs.unshift(logEntry);
+
+            if (!APP_STATE.isLogPaused) {
+                renderTerminalLogs();
+            }
+            updateRecentDashboardEvents(timeStr, text);
+        }
+
+        function renderTerminalLogs() {
+            const terminal = document.getElementById('terminal-logs');
+            if (!terminal) return;
+            terminal.innerHTML = APP_STATE.logs.map(log => {
+                let colorClass = 'text-slate-300';
+                if (log.includes('AUTH OK')) colorClass = 'text-emerald-400';
+                else if (log.includes('AUTH FAIL') || log.includes('DELETE')) colorClass = 'text-rose-400';
+                else if (log.includes('CoA') || log.includes('PoD')) colorClass = 'text-cyan-400';
+                else if (log.includes('INFO')) colorClass = 'text-amber-300';
+                return `<div class="${colorClass}">${escapeHtml(log)}</div>`;
+            }).join('');
+        }
+
+        function updateRecentDashboardEvents(timeStr, text) {
+            const tbody = document.getElementById('dashboard-recent-events');
+            if (!tbody) return;
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-800/40 transition';
+
+            let type = 'AUTH';
+            let badgeColor = 'bg-slate-800 text-slate-300';
+            let outcome = 'OK';
+            let outcomeColor = 'text-emerald-400';
+
+            if (text.includes('FAIL')) {
+                outcome = 'REJECT';
+                outcomeColor = 'text-rose-400';
+            } else if (text.includes('PoD') || text.includes('CoA')) {
+                type = 'CoA';
+                badgeColor = 'bg-cyan-500/20 text-cyan-300';
+                outcome = 'PACKET';
+                outcomeColor = 'text-cyan-400';
+            }
+
+            const cleanSnippet = text.length > 45 ? text.substring(0, 45) + '...' : text;
+            const userMatch = text.match(/\[(.*?)\]/);
+
+            tr.innerHTML = `
+                <td class="py-2.5 px-3 text-slate-400 whitespace-nowrap">${timeStr}</td>
+                <td class="py-2.5 px-3"><span class="px-1.5 py-0.5 rounded text-[10px] ${badgeColor}">${type}</span></td>
+                <td class="py-2.5 px-3 text-white font-medium">${userMatch ? userMatch[1] : 'radiusd'}</td>
+                <td class="py-2.5 px-3 text-slate-400 whitespace-nowrap">192.168.88.1</td>
+                <td class="py-2.5 px-3 font-semibold ${outcomeColor}">${outcome}</td>
+                <td class="py-2.5 px-3 text-slate-400 whitespace-nowrap">${escapeHtml(cleanSnippet)}</td>
+            `;
+
+            if (tbody.children.length >= 6) {
+                tbody.removeChild(tbody.lastChild);
+            }
+            tbody.insertBefore(tr, tbody.firstChild);
+        }
+
+        function toggleLogPause() {
+            APP_STATE.isLogPaused = !APP_STATE.isLogPaused;
+            const btn = document.getElementById('btn-pause-log');
+            if (APP_STATE.isLogPaused) {
+                btn.innerText = 'Retomar Stream';
+                btn.classList.replace('text-amber-300', 'text-emerald-400');
+            } else {
+                btn.innerText = 'Pausar Stream';
+                btn.classList.replace('text-emerald-400', 'text-amber-300');
+                renderTerminalLogs();
+            }
+        }
+
+        function clearLogs() {
+            APP_STATE.logs = [];
+            renderTerminalLogs();
+            showToast('Console de logs limpo.');
+        }
+
+        function updateSqlDump() {
+            let sql = `-- FreeRADIUS MySQL Schema Dump (RadiusHub)\n\n`;
+
+            sql += `-- Clientes NAS (Tabela: nas)\n`;
+            APP_STATE.nasClients.forEach(n => {
+                sql += `INSERT INTO nas (nasname, shortname, type, secret, description) VALUES ('${n.ip}', '${n.name}', '${n.type}', '${n.secret}', '${n.desc}');\n`;
+            });
+
+            sql += `\n-- Usuários (Tabela: radcheck)\n`;
+            APP_STATE.users.forEach(u => {
+                sql += `INSERT INTO radcheck (username, attribute, op, value) VALUES ('${u.username}', '${u.attribute}', '${u.op}', '${u.value}');\n`;
+            });
+
+            sql += `\n-- Atributos de Resposta (Tabela: radreply)\n`;
+            APP_STATE.users.forEach(u => {
+                if (u.framedIp) {
+                    sql += `INSERT INTO radreply (username, attribute, op, value) VALUES ('${u.username}', 'Framed-IP-Address', ':=', '${u.framedIp}');\n`;
+                }
+            });
+
+            const dumpArea = document.getElementById('sql-dump-area');
+            if (dumpArea) dumpArea.value = sql;
+        }
+
+        function copySqlDump() {
+            const dumpArea = document.getElementById('sql-dump-area');
+            dumpArea.select();
+            document.execCommand('copy');
+            showToast('SQL copiado para a área de transferência!');
+        }
+
+        function handleSaveUser(e) {
+            e.preventDefault();
+            const username = document.getElementById('form-user-name').value.trim();
+            const attr = document.getElementById('form-user-attr').value;
+            const pass = document.getElementById('form-user-pass').value;
+            const group = document.getElementById('form-user-group').value;
+            const ip = document.getElementById('form-user-ip').value.trim();
+            const simultaneous = parseInt(document.getElementById('form-user-simultaneous').value) || 1;
+
+            const existingIndex = APP_STATE.users.findIndex(u => u.username === username);
+            if (existingIndex !== -1) {
+                APP_STATE.users[existingIndex] = {
+                    ...APP_STATE.users[existingIndex],
+                    attribute: attr,
+                    value: pass,
+                    group: group,
+                    framedIp: ip,
+                    simultaneous: simultaneous
+                };
+                showToast(`Usuário ${username} atualizado!`);
+            } else {
+                APP_STATE.users.push({
+                    id: Date.now(),
+                    username,
+                    attribute: attr,
+                    op: ':=',
+                    value: pass,
+                    group,
+                    framedIp: ip,
+                    simultaneous,
+                    status: 'active'
+                });
+                showToast(`Usuário ${username} salvo em radcheck!`);
+            }
+
+            logEvent(`INSERT: radcheck (username='${username}', attr='${attr}')`);
+            renderUsers();
+            closeModal('modal-add-user');
+            e.target.reset();
+        }
+
+        function handleSaveNas(e) {
+            e.preventDefault();
+            const name = document.getElementById('form-nas-name').value.trim();
+            const ip = document.getElementById('form-nas-ip').value.trim();
+            const type = document.getElementById('form-nas-type').value;
+            const secret = document.getElementById('form-nas-secret').value.trim();
+            const desc = document.getElementById('form-nas-desc').value.trim();
+
+            APP_STATE.nasClients.push({
+                id: Date.now(),
+                name,
+                ip,
+                type,
+                secret,
+                desc
+            });
+
+            logEvent(`INSERT: nas (nasname='${ip}', shortname='${name}')`);
+            renderNasClients();
+            closeModal('modal-add-nas');
+            showToast(`NAS ${name} adicionado!`);
+            e.target.reset();
+        }
+
+        function handleSaveGroup(e) {
+            e.preventDefault();
+            const name = document.getElementById('form-group-name').value.trim();
+            const rate = document.getElementById('form-group-rate').value.trim();
+            const timeout = parseInt(document.getElementById('form-group-timeout').value) || 86400;
+
+            APP_STATE.groups.push({
+                id: Date.now(),
+                name,
+                rate,
+                timeout,
+                desc: 'Perfil customizado de velocidade'
+            });
+
+            const userGroupSelect = document.getElementById('form-user-group');
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.innerText = name;
+            userGroupSelect.appendChild(opt);
+
+            renderGroups();
+            closeModal('modal-add-group');
+            showToast(`Perfil ${name} criado.`);
+            e.target.reset();
+        }
+
+        function sendRadReload() {
+            logEvent('SIGNAL: kill -HUP `cat /var/run/freeradius/freeradius.pid`');
+            showToast('Sinal HUP enviado: configurações recarregadas!');
+        }
+
+        function openModal(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.add('hidden');
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toast-message');
+            msgEl.innerText = message;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        function initCharts() {
+            const ctxAuth = document.getElementById('authChart').getContext('2d');
+            window.authChart = new Chart(ctxAuth, {
+                type: 'line',
+                data: {
+                    labels: ['08h', '10h', '12h', '14h', '16h', '18h', '20h', 'Agora'],
+                    datasets: [
+                        {
+                            label: 'Accept (Sucesso)',
+                            data: [120, 190, 310, 280, 420, 580, 710, 690],
+                            borderColor: '#22c55e',
+                            backgroundColor: 'rgba(34, 197, 94, 0.08)',
+                            fill: true,
+                            tension: 0.35,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Reject (Falha)',
+                            data: [4, 7, 12, 6, 14, 22, 18, 9],
+                            borderColor: '#f43f5e',
+                            backgroundColor: 'transparent',
+                            tension: 0.35,
+                            borderWidth: 1.5,
+                            borderDash: [4, 4]
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 10 } }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: '#1e293b' },
+                            ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+                        },
+                        y: {
+                            grid: { color: '#1e293b' },
+                            ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+                        }
+                    }
+                }
+            });
+
+            const ctxPie = document.getElementById('nasPieChart').getContext('2d');
+            window.nasPieChart = new Chart(ctxPie, {
+                type: 'doughnut',
+                data: {
+                    labels: ['MikroTik Core', 'Cisco Catalyst', 'pfSense VPN'],
+                    datasets: [{
+                        data: [72, 18, 10],
+                        backgroundColor: ['#10b981', '#06b6d4', '#6366f1'],
+                        borderColor: '#0f172a',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 10 } }
+                        }
+                    },
+                    cutout: '68%'
+                }
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            renderUsers();
+            renderNasClients();
+            renderGroups();
+            renderAccounting();
+            initCharts();
+
+            logEvent('INFO: FreeRADIUS inicializado nas portas 1812/udp e 1813/udp.');
+            logEvent('INFO: Módulo rlm_sql conectado ao MySQL (raddb_prod).');
+            logEvent('AUTH OK: [joao.silva] Autenticado com sucesso via NAS 192.168.88.1');
+            logEvent('AUTH OK: [corp-alphatech] Autenticado com sucesso via NAS 192.168.88.1');
+        });
+    </script>
+    <script src="api.js"></script>
+</body>
+</html>
