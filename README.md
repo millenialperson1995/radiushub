@@ -348,7 +348,9 @@ UPDATE radacct SET acctstoptime=NOW(), acctterminatecause='Admin-Reset'
 | Backup | `/var/backups/radiushub/` + `/usr/local/sbin/radiushub-backup.sh` | cron diário 03:00 |
 | Monitor | `/usr/local/sbin/radiushub-monitor.sh` | cron 5 min, alerta Telegram |
 | Limpeza de sessões | `/usr/local/sbin/radiushub-cleanup.sh` | cron diário 04:00, fecha sessões órfãs |
-| Cron | `/etc/cron.d/radiushub-backup`, `radiushub-monitor`, `radiushub-cleanup` | agendamentos |
+| DNS | Unbound recursivo + RPZ Hagezi na porta 53 (ver seção 20) |
+| Firewall | UFW ativo: 22, 53, 80, 443, 1812/1813 |
+| Cron | `/etc/cron.d/radiushub-backup`, `radiushub-monitor`, `radiushub-cleanup`, `radiushub-rpz` | agendamentos |
 
 Serviços: `mariadb`, `freeradius`, `apache2` (todos `enabled` no boot).
 
@@ -571,7 +573,66 @@ No RouterOS: `/ping 10.10.10.2`, `/radius monitor 0` (accepts subindo),
 Se não houver backup, siga a seção **5** (instalação manual) e a seção **15**
 (referência do FreeRADIUS); depois reconfigure o MikroTik pela seção **16**.
 
-## 19. Arquivos
+## 19. DNS recursivo (Unbound) + UFW + uso no MikroTik
+
+### 20.1 O que foi instalado
+
+- **Unbound** recursivo com DNSSEC, `prefetch` + `serve-expired` (rápido sob carga),
+  cache 64M/128M e `qname-minimisation`.
+- **RPZ Hagezi Pro** (`pro.txt`, ~13MB): bloqueia ads/trackers/malware com
+  NXDOMAIN. Atualização semanal (segunda 04:30) via cron + refresh automático
+  pelo timer SOA da zona.
+- **UFW ativo**: `deny incoming` + libera `22/tcp`, `53 tcp/udp`, `80/tcp`,
+  `443/tcp`, `1812/udp`, `1813/udp`.
+
+> Detalhe de plataforma: o `systemd-resolved` ocupa `127.0.0.53:53` e
+> `127.0.0.54:53`, o que impede o Unbound de usar o wildcard `0.0.0.0:53`.
+> Por isso ele escuta IPs explícitos: `127.0.0.1`, `::1`, `10.10.10.2` e o IP
+> de gerência. Não mexa nisso sem ajustar `unbound-radiushub.conf`.
+
+### 20.2 Usar este DNS no MikroTik
+
+```routeros
+# o próprio roteador resolve por aqui
+/ip dns set servers=10.10.10.2 allow-remote-requests=yes
+# clientes PPPoE recebem este DNS (troque no profile)
+/ppp profile set Plano-Base dns-server=10.10.10.2
+```
+
+Teste no servidor:
+
+```bash
+dig +short @127.0.0.1 example.com        # deve retornar IPs (recursão)
+dig @127.0.0.1 sigok.verteiltesysteme.net | grep flags   # deve ter flag "ad" (DNSSEC)
+dig +short @127.0.0.1 accounts.doubleclick.net  # vazio/NXDOMAIN (RPZ bloqueou)
+```
+
+### 20.3 Arquivos e comandos do DNS
+
+| Item | Caminho |
+|---|---|
+| Config | `/etc/unbound/unbound.conf.d/radiushub.conf` |
+| Lista RPZ | `/var/lib/unbound/hagezi-pro.rpz` |
+| Update semanal | `/usr/local/sbin/radiushub-rpz-update.sh` + `/etc/cron.d/radiushub-rpz` |
+| Firewall | `ufw status verbose` |
+
+```bash
+sudo unbound-checkconf
+sudo systemctl restart unbound
+sudo unbound-control status
+sudo ufw status verbose
+```
+
+### 20.4 Troubleshooting DNS
+
+| Sintoma | Verificar |
+|---|---|
+| `REFUSED` de outra rede | `access-control` no `radiushub.conf` (libere a rede do cliente) |
+| RPZ não bloqueia | domínio precisa estar na lista (`grep domínio /var/lib/unbound/hagezi-pro.rpz`); `systemctl reload unbound` após trocar o arquivo |
+| Lento na 1ª consulta | normal (recursão raiz→TLD→autoritativo); `prefetch` acelera as seguintes |
+| Porta 53 ocupada | `ss -lun | grep ':53 '`; systemd-resolved usa `127.0.0.53` (não conflita com os IPs explícitos) |
+
+## 20. Arquivos
 
 ```
 radiushub/
@@ -581,6 +642,8 @@ radiushub/
 ├── backup.sh     # backup diario (MySQL + FreeRADIUS + painel)
 ├── monitor.sh    # monitor de saude + alerta Telegram
 ├── cleanup.sh    # limpeza de sessoes orfas do accounting
+├── rpz-update.sh # atualiza a RPZ Hagezi + reload do Unbound
+├── unbound-radiushub.conf  # config do Unbound (__THREADS__/__RADIUS_IP__/__MGMT_IP__)
 ├── install.sh    # instalador do servidor (edite as variaveis no topo)
 └── README.md     # este arquivo
 ```

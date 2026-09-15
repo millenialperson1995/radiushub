@@ -25,8 +25,8 @@ echo "### 1/8 Pacotes"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq mariadb-server freeradius freeradius-mysql freeradius-utils \
-  apache2 php libapache2-mod-php php-mysql snmp curl unzip >/dev/null
-systemctl enable --now mariadb freeradius apache2 >/dev/null
+  apache2 php libapache2-mod-php php-mysql snmp curl unzip unbound dnsutils ufw >/dev/null
+systemctl enable --now mariadb freeradius apache2 unbound >/dev/null
 
 echo "### 2/8 Rede dedicada ($RADIUS_IFACE = $RADIUS_IP)"
 if ! grep -q "$RADIUS_IP" /etc/netplan/*.yaml 2>/dev/null; then
@@ -144,23 +144,50 @@ echo "### 6b/8 Backup automatico + monitoramento + limpeza"
 install -m 750 "$SRC_DIR/backup.sh" /usr/local/sbin/radiushub-backup.sh
 install -m 750 "$SRC_DIR/monitor.sh" /usr/local/sbin/radiushub-monitor.sh
 install -m 750 "$SRC_DIR/cleanup.sh" /usr/local/sbin/radiushub-cleanup.sh
+install -m 750 "$SRC_DIR/rpz-update.sh" /usr/local/sbin/radiushub-rpz-update.sh
 echo "0 3 * * * root /usr/local/sbin/radiushub-backup.sh >> /var/log/radiushub-backup.log 2>&1" > /etc/cron.d/radiushub-backup
 echo "*/5 * * * * root /usr/local/sbin/radiushub-monitor.sh" > /etc/cron.d/radiushub-monitor
 echo "0 4 * * * root /usr/local/sbin/radiushub-cleanup.sh >> /var/log/radiushub-backup.log 2>&1" > /etc/cron.d/radiushub-cleanup
-chmod 644 /etc/cron.d/radiushub-backup /etc/cron.d/radiushub-monitor /etc/cron.d/radiushub-cleanup
+echo "30 4 * * 1 root /usr/local/sbin/radiushub-rpz-update.sh" > /etc/cron.d/radiushub-rpz
+chmod 644 /etc/cron.d/radiushub-backup /etc/cron.d/radiushub-monitor /etc/cron.d/radiushub-cleanup /etc/cron.d/radiushub-rpz
 /usr/local/sbin/radiushub-backup.sh >/dev/null
 /usr/local/sbin/radiushub-cleanup.sh >/dev/null
 /usr/local/sbin/radiushub-monitor.sh
 
+echo "### 6c/8 Unbound recursivo + RPZ Hagezi"
+RADIUS_HOST_IP="${RADIUS_IP%%/*}"
+MGMT_IP="$(hostname -I | awk '{print $1}')"
+THREADS="$(nproc)"
+sed -e "s/__THREADS__/$THREADS/" -e "s/__RADIUS_IP__/$RADIUS_HOST_IP/" -e "s/__MGMT_IP__/$MGMT_IP/" \
+  "$SRC_DIR/unbound-radiushub.conf" > /etc/unbound/unbound.conf.d/radiushub.conf
+curl -sL --max-time 180 -o /var/lib/unbound/hagezi-pro.rpz https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/rpz/pro.txt
+chown unbound:unbound /var/lib/unbound/hagezi-pro.rpz && chmod 644 /var/lib/unbound/hagezi-pro.rpz
+unbound-checkconf
+systemctl restart unbound
+
+echo "### 6d/8 UFW (SSH primeiro!)"
+ufw allow 22/tcp >/dev/null
+ufw allow 53 >/dev/null
+ufw allow 80/tcp >/dev/null
+ufw allow 443/tcp >/dev/null
+ufw allow 1812/udp >/dev/null
+ufw allow 1813/udp >/dev/null
+ufw --force enable >/dev/null
+
 echo "### 7/8 Verificacao"
-systemctl is-active --quiet freeradius mariadb apache2 || { echo "ERRO: servico parado"; exit 1; }
+systemctl is-active --quiet freeradius mariadb apache2 unbound || { echo "ERRO: servico parado"; exit 1; }
 ss -lun | grep -q ':1812 ' || { echo "ERRO: porta 1812 fechada"; exit 1; }
+ss -lun | grep -q ':53 ' || { echo "ERRO: porta 53 fechada"; exit 1; }
+ufw status | grep -q "Status: active" || { echo "ERRO: UFW inativo"; exit 1; }
+dig +short +time=5 @127.0.0.1 example.com | grep -qE '^[0-9.]+$' || { echo "ERRO: Unbound nao resolve"; exit 1; }
+dig +short @127.0.0.1 accounts.doubleclick.net | grep -q . && { echo "ERRO: RPZ nao bloqueando"; exit 1; }
 [ "$(curl -sk -o /dev/null -w '%{http_code}' https://127.0.0.1/)" = "200" ] || { echo "ERRO: painel nao respondeu em HTTPS"; exit 1; }
 curl -sk "https://127.0.0.1/api.php?action=status" | grep -q '"ok":true' || { echo "ERRO: api.php"; exit 1; }
 ls /var/backups/radiushub/*.sql.gz >/dev/null 2>&1 || { echo "ERRO: backup nao gerado"; exit 1; }
 
 echo "### 8/8 OK!"
 echo "Painel: https://$(hostname -I | awk '{print $1}')/  (sem login)"
+echo "DNS recursivo: $(hostname -I | awk '{print $1}') e $RADIUS_HOST_IP (porta 53)"
 echo "Backups em /var/backups/radiushub (diario 03:00, retencao 30 dias)"
 echo "Monitor em /var/log/radiushub-monitor.log (5/5 min)"
-echo "Proximos passos no MikroTik: ver README.md secao 5.6"
+echo "Proximos passos no MikroTik: ver README.md secoes 5.6 e 19"
